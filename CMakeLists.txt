@@ -20,6 +20,12 @@ add_executable(image_sub src/image_subscriber.cc)
 # include dirs
 include_directories(include)
 
+# install launch files
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # add depend
 ament_target_dependencies(dwe_ros2_parser
   rclcpp

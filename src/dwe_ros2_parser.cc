@@ -30,14 +30,15 @@ DWE_Ros2_Parser::~DWE_Ros2_Parser() {
 void DWE_Ros2_Parser::fetch_ros_parameters() {
 
     // Get ROS parameter
-    declare_parameter("device", 9);
-    declare_parameter("image_topic", "/dwe/camera_0");
-    declare_parameter("width", 1920);
-    declare_parameter("height", 1080);
-    declare_parameter("framerate", 30);
+    declare_parameter("device", 0);
+    declare_parameter("image_topic", "/dwe/camera");
+    declare_parameter("width", 1600);
+    declare_parameter("height", 1200);
+    declare_parameter("framerate", 60);
     declare_parameter("auto_exposure", false);
     declare_parameter("exposure", 100);
     declare_parameter("show_image", false);
+    declare_parameter("use_h264", false);
 
     // Fetch parameters
     device_ = get_parameter("device").as_int();
@@ -48,6 +49,7 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     auto_exposure_ = get_parameter("auto_exposure").as_bool();
     exposure_ = get_parameter("exposure").as_int();
     show_image_ = get_parameter("show_image").as_bool();
+    use_h264_ = get_parameter("use_h264").as_bool();
 }
 
 // Image Callback
@@ -55,22 +57,34 @@ void DWE_Ros2_Parser::dwe_loop() {
 
     // Create a video capture object
     cv::VideoCapture dwe_camera = cv::VideoCapture(device_, cv::CAP_V4L2); 
-    const int MJPG = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
-    dwe_camera.set(cv::CAP_PROP_FOURCC, MJPG);
-    dwe_camera.set(cv::CAP_PROP_FRAME_WIDTH, width_);
-    dwe_camera.set(cv::CAP_PROP_FRAME_HEIGHT, height_);
+
+    // Choose compression. MJPG is FAST, H264 is more efficient but can bring latency
+    int fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G'); 
+    if (use_h264_) {
+        fourcc = cv::VideoWriter::fourcc('H', '2', '6', '4');
+    }
+    dwe_camera.set(cv::CAP_PROP_FOURCC, fourcc);
+
+    // These don't work properly
+    // dwe_camera.set(cv::CAP_PROP_FRAME_WIDTH, width_);
+    // dwe_camera.set(cv::CAP_PROP_FRAME_HEIGHT, height_);
     dwe_camera.set(cv::CAP_PROP_FPS, framerate_);
+
+    // Set buffer to zero to not build up latency
+    dwe_camera.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
     // Check if auto exposure should be disabled
     if (!auto_exposure_) {
         dwe_camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
-        dwe_camera.set(cv::CAP_PROP_EXPOSURE, 90);
+        dwe_camera.set(cv::CAP_PROP_EXPOSURE, exposure_);
     }
 
     // Loop variables
     cv_bridge::CvImage cv_image;
     cv_image.encoding="bgr8";
     cv::Mat image;
+    const int interval = 1000 / framerate_;
+
     
     // Looks for interupts
     signal(SIGINT, signal_handler);
@@ -78,12 +92,17 @@ void DWE_Ros2_Parser::dwe_loop() {
     // Loop is run until Node is told to quit 
     while(running) {
 
+        // Start time
+        auto start = chrono::high_resolution_clock::now();
 
         // Retrive image        
         bool success = dwe_camera.read(image);
 
         // If image is received
         if (success) {
+
+            // Print image dimensions
+            // cout << "Width: " << image.cols << ", Height: " << image.rows << endl;
 
             // Shows image if set to true
             if (show_image_) {
@@ -100,6 +119,13 @@ void DWE_Ros2_Parser::dwe_loop() {
         image_msg.header.stamp = this->now();
         image_msg.header.frame_id = "camera_frame";
         image_pub_->publish(image_msg);
+
+        // Keeps fps
+        auto elapsed = chrono::high_resolution_clock::now() - start;
+        int elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        int wait_time = interval - elapsed_ms;
+        wait_time = max(1, wait_time);
+        this_thread::sleep_for(chrono::milliseconds(wait_time));
 
         }
 

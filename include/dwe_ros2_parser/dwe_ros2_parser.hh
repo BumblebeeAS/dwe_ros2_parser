@@ -9,6 +9,7 @@
 #include "cv_bridge/cv_bridge.h"
 #include <iostream>
 #include <csignal>
+#include <thread>
 
 using namespace std;
 
@@ -30,7 +31,7 @@ class DWE_Ros2_Parser : public rclcpp::Node {
         // ROS2 Parameters
         string image_topic_;
         int width_, height_, framerate_, device_, exposure_;
-        bool auto_exposure_, show_image_;
+        bool auto_exposure_, show_image_, use_h264_;
 
         // ROS2 variables
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
