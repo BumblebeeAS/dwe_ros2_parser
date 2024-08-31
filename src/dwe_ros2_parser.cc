@@ -39,6 +39,9 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     declare_parameter("exposure", 100);
     declare_parameter("show_image", false);
     declare_parameter("use_h264", false);
+    declare_parameter("save_images", false);
+    declare_parameter("save_folder", " ~");
+    declare_parameter("image_prefix", "image");
 
     // Fetch parameters
     device_ = get_parameter("device").as_int();
@@ -50,6 +53,9 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     exposure_ = get_parameter("exposure").as_int();
     show_image_ = get_parameter("show_image").as_bool();
     use_h264_ = get_parameter("use_h264").as_bool();
+    save_images_ = get_parameter("save_images").as_bool();
+    save_folder_ = get_parameter("save_folder").as_string();
+    image_prefix_ = get_parameter("image_prefix").as_string();
 }
 
 // Image Callback
@@ -66,8 +72,8 @@ void DWE_Ros2_Parser::dwe_loop() {
     dwe_camera.set(cv::CAP_PROP_FOURCC, fourcc);
 
     // These don't work properly
-    // dwe_camera.set(cv::CAP_PROP_FRAME_WIDTH, width_);
-    // dwe_camera.set(cv::CAP_PROP_FRAME_HEIGHT, height_);
+    dwe_camera.set(cv::CAP_PROP_FRAME_WIDTH, width_);
+    dwe_camera.set(cv::CAP_PROP_FRAME_HEIGHT, height_);
     dwe_camera.set(cv::CAP_PROP_FPS, framerate_);
 
     // Set buffer to zero to not build up latency
@@ -79,12 +85,18 @@ void DWE_Ros2_Parser::dwe_loop() {
         dwe_camera.set(cv::CAP_PROP_EXPOSURE, exposure_);
     }
 
+    // Check if save dir exists, and if not create it 
+    if (save_images_) {
+    std::filesystem::path save_dir(save_folder_);
+        if (!std::filesystem::exists(save_dir)) {
+            std::filesystem::create_directory(save_dir);
+        }
+    }
+
     // Loop variables
     cv_bridge::CvImage cv_image;
     cv_image.encoding="bgr8";
     cv::Mat image;
-    const int interval = 1000 / framerate_;
-
     
     // Looks for interupts
     signal(SIGINT, signal_handler);
@@ -100,9 +112,6 @@ void DWE_Ros2_Parser::dwe_loop() {
 
         // If image is received
         if (success) {
-
-            // Print image dimensions
-            // cout << "Width: " << image.cols << ", Height: " << image.rows << endl;
 
             // Shows image if set to true
             if (show_image_) {
@@ -120,15 +129,12 @@ void DWE_Ros2_Parser::dwe_loop() {
         image_msg.header.frame_id = "camera_frame";
         image_pub_->publish(image_msg);
 
-        // Keeps fps
-        auto elapsed = chrono::high_resolution_clock::now() - start;
-        int elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-        int wait_time = interval - elapsed_ms;
-        wait_time = max(1, wait_time);
-        this_thread::sleep_for(chrono::milliseconds(wait_time));
-
+        if (save_images_) {
+            string filename = save_folder_ + "/" + image_prefix_ + to_string(image_msg.header.stamp.sec) + ".jpg";
+            cv::imwrite(filename, image);
         }
 
+    }
     }
 
     // Release camera object

@@ -34,15 +34,18 @@ def generate_launch_description():
         package='dwe_ros2_parser',
         executable='dwe_ros2_parser',
         parameters=[{
-          'device': 0,
+          'device': 9,
           'image_topic': '/dwe/camera',
-          'width': 1600,
-          'height': 1200,
-          'framerate': 60,
+          'width': 800,
+          'height': 600,
+          'framerate': 15,
           'auto_exposure': False,
           'exposure': 100,
-          'show_image' : False, 
+          'show_image' : True, 
           'use_h264': False,
+          'save_images': False,
+          'save_folder': '/home/urlaxle/dwe_images',
+          'image_prefix': 'dwe_image',
         }],
         output='screen'
     )
