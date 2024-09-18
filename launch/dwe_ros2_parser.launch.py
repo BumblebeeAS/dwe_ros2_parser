@@ -43,9 +43,9 @@ def generate_launch_description():
           'exposure': 100,
           'show_image' : True, 
           'use_h264': False,
-          'save_images': False,
-          'save_folder': '/home/urlaxle/dwe_images',
-          'image_prefix': 'dwe_image',
+          'save_images': True,
+          'save_folder': '/home/urlaxle/data/camera_calibration/17092024/left',
+          'image_prefix': 'left',
         }],
         output='screen'
     )

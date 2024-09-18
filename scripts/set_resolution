@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Get video device
+VIDEO_INDEX=${1:-0}
+
+# Get width
+WIDTH=${2:-800}
+
+# Get height
+HEIGHT=${3:-600}
+
+# Get format
+FORMAT=${4:-"MJPG"}
+
+echo "Attempting to set resolution to ${WIDTH}x${HEIGHT} with format ${FORMAT} for video device /dev/video${VIDEO_INDEX}"
+v4l2-ctl --set-fmt-video=width=${WIDTH},height=${HEIGHT},pixelformat=${FORMAT}

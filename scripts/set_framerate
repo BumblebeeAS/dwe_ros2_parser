@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Get video index
+VIDEO_INDEX=${1:-0}
+
+# Get Framerate
+FRAMERATE=${2:-15}
+
+# Get the current framerate
+echo "Attempting to set framerate to ${FRAMERATE} for /dev/video${VIDEO_INDEX}"
+v4l2-ctl --device /dev/video${VIDEO_INDEX} --set-parm ${FRAMERATE}

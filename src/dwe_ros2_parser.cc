@@ -74,10 +74,10 @@ void DWE_Ros2_Parser::dwe_loop() {
     // These don't work properly
     dwe_camera.set(cv::CAP_PROP_FRAME_WIDTH, width_);
     dwe_camera.set(cv::CAP_PROP_FRAME_HEIGHT, height_);
-    dwe_camera.set(cv::CAP_PROP_FPS, framerate_);
+    //dwe_camera.set(cv::CAP_PROP_FPS, framerate_);
 
     // Set buffer to zero to not build up latency
-    dwe_camera.set(cv::CAP_PROP_BUFFERSIZE, 1);
+    //dwe_camera.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
     // Check if auto exposure should be disabled
     if (!auto_exposure_) {
@@ -130,7 +130,7 @@ void DWE_Ros2_Parser::dwe_loop() {
         image_pub_->publish(image_msg);
 
         if (save_images_) {
-            string filename = save_folder_ + "/" + image_prefix_ + to_string(image_msg.header.stamp.sec) + ".jpg";
+            string filename = save_folder_ + "/" + image_prefix_ + to_string(image_msg.header.stamp.sec) + "." + to_string(image_msg.header.stamp.nanosec) + ".jpg";
             cv::imwrite(filename, image);
         }
 

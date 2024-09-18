@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#Get amont of cameras
+NUM_CAMERAS=${1:-2}
+
+#Get Resolution
+WIDTH=${2:-800}
+HEIGHT=${3:-600}
+
+#Get Framerate
+FRAMERATE=${4:-15}
+
+#Output Video Index
+OUTPUT_VIDEO_INDEX=${5:-9}
+
+# Get the camera indexes
+CAMERA_INDEXES=()
+
+for ((i=0; i<NUM_CAMERAS; i++)); do
+    echo "I: $i"
+    IDX=${!((i+6))}
+    CAMERA_INDEXES+=($IDX)
+done
+
+echo "Camera Indexed: ${CAMERA_INDEXES[@]}"
