@@ -1,5 +1,12 @@
 # DeepWater Explorer - ROS2 Parser
 
+## Quick Start Guide (Step by Step)
+1. First install required [dependencies](#dependencies-for-running).
+2. Clone this repository into a workspace (e.g. `~/workspaces/ros2_ws/src/`)
+3. Connect your camera [find the device number](#how-to-find-device-number) and change the parameter `device` in the launch file (`dwe_ros_parser/launch/dwe_ros2_parser.launch.py`) to be the number X as detailed in that section.
+4. Make a directory somewhere and change the parameter `save_folder` in the launch file (`dwe_ros_parser/launch/dwe_ros2_parser.launch.py`) to that directory to save the images
+5. Build the workspace and source
+6. Run the launch file in [overview](#overview)
 
 ## Overview
 
@@ -16,28 +23,36 @@ The `ros2 topic hz <topic_name>`and inbuilt tools like `ros2 run image_view imag
 ros2 run dwe_ros2_parser image_sub
 ```
 
-## Dependencies
+## Dependencies for running
 
 OpenCV:
 ```
-apt install libopencv-dev
+sudo apt install libopencv-core-dev=4.5.* libopencv-dev=4.5.*
 ```
 
 ROS2 Humble:
 
 https://docs.ros.org/en/humble/Installation.html
+```
+sudo apt install ros-humble-desktop-full
+```
 
 Gstreamer:
 ```
-apt install libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+sudo apt install libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
 gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
 gstreamer1.0-plugins-bad gstreamer1.0-libav libgstreamer-plugins-bad1.0-dev \
-gstreamer1.0-plugins-ugly gstreamer1.0-gl \
+gstreamer1.0-plugins-ugly gstreamer1.0-gl
 ```
 
 V4l:
 ```
-apt install v4l-utils
+sudo apt install v4l-utils
+```
+
+Cvbridge and more (run this in your workspace like `~/workspaces/ros2_ws`)
+```
+rosdep install --from-paths src --ignore-src -r -y --reinstall
 ```
 
 
