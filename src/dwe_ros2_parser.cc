@@ -31,7 +31,7 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
 
     // Get ROS parameter
     declare_parameter("device", 0);
-    declare_parameter("image_topic", "/dwe/camera");
+    declare_parameter("image_topic", "/dwe/image_raw");
     declare_parameter("width", 1600);
     declare_parameter("height", 1200);
     declare_parameter("framerate", 60);
@@ -40,7 +40,7 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     declare_parameter("show_image", false);
     declare_parameter("use_h264", false);
     declare_parameter("save_images", false);
-    declare_parameter("save_folder", " ~");
+    declare_parameter("save_folder", "~");
     declare_parameter("image_prefix", "image");
 
     // Fetch parameters

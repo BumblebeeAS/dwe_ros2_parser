@@ -35,10 +35,10 @@ def generate_launch_description():
         executable='dwe_ros2_parser',
         parameters=[{
           'device': 0,
-          'image_topic': '/dwe/camera',
+          'image_topic': '/dwe/image_raw',
           'width': 800,
           'height': 600,
-          'framerate': 15,
+          'framerate': 12,
           'auto_exposure': False,
           'exposure': 100,
           'show_image' : True, 
