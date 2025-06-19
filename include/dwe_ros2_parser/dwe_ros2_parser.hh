@@ -2,7 +2,6 @@
 #define DWE_ROS2_PARSER_HH_
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <string>
@@ -11,6 +10,9 @@
 #include <csignal>
 #include <thread>
 #include <filesystem>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <opencv2/core/mat.hpp>
 
 using namespace std;
 
@@ -28,14 +30,16 @@ class DWE_Ros2_Parser : public rclcpp::Node {
 
     // Members
     private:
-
+        cv::Mat camera_matrix_, dist_coeffs_;
+        std::string calib_file_path_;
         // ROS2 Parameters
-        string image_topic_, save_folder_, image_prefix_;
-        int width_, height_, framerate_, device_, exposure_;
+        string image_topic_, save_folder_, image_prefix_, device_, camera_info_topic_;
+        int width_, height_, framerate_, exposure_;
         bool auto_exposure_, show_image_, use_h264_, save_images_;
 
         // ROS2 variables
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+        rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
 
 };
 

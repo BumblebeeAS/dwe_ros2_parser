@@ -15,6 +15,7 @@ DWE_Ros2_Parser::DWE_Ros2_Parser() : Node("dwe_ros2_parser") {
 
     // Configure publisher
     image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic_, 1);
+    camera_info_pub_ = create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1);
 
     // Start DWE Loop
     dwe_loop();
@@ -30,10 +31,12 @@ DWE_Ros2_Parser::~DWE_Ros2_Parser() {
 void DWE_Ros2_Parser::fetch_ros_parameters() {
 
     // Get ROS parameter
-    declare_parameter("device", 0);
+    declare_parameter("device", "/dev/dwe_camera");
     declare_parameter("image_topic", "/dwe/image_raw");
-    declare_parameter("width", 1600);
-    declare_parameter("height", 1200);
+    declare_parameter("camera_info_topic", "/dwe/camera_info");
+    declare_parameter("calib_file", "/path/to/calib.yaml");
+    declare_parameter("width", 800);    // Originally 1600
+    declare_parameter("height", 600);   // Originally 1200
     declare_parameter("framerate", 60);
     declare_parameter("auto_exposure", false);
     declare_parameter("exposure", 100);
@@ -43,8 +46,9 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     declare_parameter("save_folder", "~");
     declare_parameter("image_prefix", "image");
 
+
     // Fetch parameters
-    device_ = get_parameter("device").as_int();
+    device_ = get_parameter("device").as_string();
     image_topic_ = get_parameter("image_topic").as_string();
     width_ = get_parameter("width").as_int();
     height_ = get_parameter("height").as_int();
@@ -56,6 +60,18 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     save_images_ = get_parameter("save_images").as_bool();
     save_folder_ = get_parameter("save_folder").as_string();
     image_prefix_ = get_parameter("image_prefix").as_string();
+    camera_info_topic_ = get_parameter("camera_info_topic").as_string();
+    calib_file_path_ = get_parameter("calib_file").as_string();
+    
+    // Load calibration data
+    cv::FileStorage fs(calib_file_path_, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+        RCLCPP_ERROR(get_logger(), "Failed to open calibration file: %s", calib_file_path_.c_str());
+        return;
+    }
+    fs["camera_matrix"] >> camera_matrix_;
+    fs["distortion_coefficients"] >> dist_coeffs_;
+    fs.release();
 }
 
 // Image Callback
@@ -129,6 +145,25 @@ void DWE_Ros2_Parser::dwe_loop() {
         image_msg.header.frame_id = "camera_frame";
         image_pub_->publish(image_msg);
 
+        // Publish camera info
+        auto camera_info_msg = std::make_unique<sensor_msgs::msg::CameraInfo>();
+        camera_info_msg->header = image_msg.header;
+        camera_info_msg->height = height_;
+        camera_info_msg->width = width_;
+        
+        // Copy camera matrix
+        for (int i = 0; i < 9; i++) {
+            camera_info_msg->k[i] = camera_matrix_.at<double>(i/3, i%3);
+        }
+        
+        // Copy distortion coefficients
+        camera_info_msg->d.resize(dist_coeffs_.total());
+        for (int i = 0; i < dist_coeffs_.total(); i++) {
+            camera_info_msg->d[i] = dist_coeffs_.at<double>(i);
+        }
+        
+        camera_info_pub_->publish(*camera_info_msg);
+        
         if (save_images_) {
             string filename = save_folder_ + "/" + image_prefix_ + to_string(image_msg.header.stamp.sec) + "." + to_string(image_msg.header.stamp.nanosec) + ".jpg";
             cv::imwrite(filename, image);
