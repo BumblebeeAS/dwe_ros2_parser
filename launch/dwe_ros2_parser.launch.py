@@ -26,8 +26,11 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 from launch_ros.actions import Node
 
-
 def generate_launch_description():
+
+    # Get package share directory
+    pkg_share = get_package_share_directory('dwe_ros2_parser')
+    calib_file_path = os.path.join(pkg_share, 'config', 'sample.yaml')
 
     # Setup project paths
     dwe_parser = Node(
@@ -36,6 +39,8 @@ def generate_launch_description():
         parameters=[{
           'device': "/dev/dwe_camera",
           'image_topic': '/dwe/image_raw',
+          'camera_info_topic': '/dwe/camera_info',
+          'calib_file': calib_file_path,
           'width': 800,
           'height': 600,
           'framerate': 12,
@@ -50,8 +55,6 @@ def generate_launch_description():
         output='screen'
     )
 
-
     return LaunchDescription([
         dwe_parser,
     ])
-

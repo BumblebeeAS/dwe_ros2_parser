@@ -12,8 +12,14 @@ DWE_Ros2_Parser::DWE_Ros2_Parser() : Node("dwe_ros2_parser") {
 
     // Fetch ROS parameters
     fetch_ros_parameters();
+    
+    // Load camera calibration
+    load_camera_calibration();
+    
+    // Setup camera info template
+    setup_camera_info();
 
-    // Configure publisher
+    // Configure publishers
     image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic_, 1);
     camera_info_pub_ = create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1);
 
@@ -63,20 +69,101 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     camera_info_topic_ = get_parameter("camera_info_topic").as_string();
     calib_file_path_ = get_parameter("calib_file").as_string();
     
+}
+
+// Load camera calibration from YAML file
+void DWE_Ros2_Parser::load_camera_calibration() {
+    RCLCPP_INFO(get_logger(), "Loading calibration file: %s", calib_file_path_.c_str());
+    
+    // Check if calibration file exists
+    if (!std::filesystem::exists(calib_file_path_)) {
+        RCLCPP_WARN(get_logger(), "Calibration file does not exist: %s", calib_file_path_.c_str());
+        RCLCPP_WARN(get_logger(), "Creating default camera matrix and distortion coefficients");
+        
+        // Create default camera matrix
+        camera_matrix_ = cv::Mat::eye(3, 3, CV_64F);
+        camera_matrix_.at<double>(0, 0) = 800.0;  // fx
+        camera_matrix_.at<double>(1, 1) = 800.0;  // fy
+        camera_matrix_.at<double>(0, 2) = width_ / 2.0;   // cx
+        camera_matrix_.at<double>(1, 2) = height_ / 2.0;  // cy
+        
+        // Create default distortion coefficients (no distortion)
+        dist_coeffs_ = cv::Mat::zeros(1, 5, CV_64F);
+        return;
+    }
+    
     // Load calibration data
     cv::FileStorage fs(calib_file_path_, cv::FileStorage::READ);
     if (!fs.isOpened()) {
         RCLCPP_ERROR(get_logger(), "Failed to open calibration file: %s", calib_file_path_.c_str());
+        RCLCPP_WARN(get_logger(), "Using default calibration parameters");
+        
+        // Create default camera matrix
+        camera_matrix_ = cv::Mat::eye(3, 3, CV_64F);
+        camera_matrix_.at<double>(0, 0) = 800.0;  // fx
+        camera_matrix_.at<double>(1, 1) = 800.0;  // fy
+        camera_matrix_.at<double>(0, 2) = width_ / 2.0;   // cx
+        camera_matrix_.at<double>(1, 2) = height_ / 2.0;  // cy
+        
+        // Create default distortion coefficients (no distortion)
+        dist_coeffs_ = cv::Mat::zeros(1, 5, CV_64F);
         return;
     }
+    
     fs["camera_matrix"] >> camera_matrix_;
     fs["distortion_coefficients"] >> dist_coeffs_;
     fs.release();
+    
+    RCLCPP_INFO(get_logger(), "Successfully loaded calibration file");
 }
 
-// Image Callback
-void DWE_Ros2_Parser::dwe_loop() {
+// Setup camera info template once
+void DWE_Ros2_Parser::setup_camera_info() {
+    camera_info_template_.height = height_;
+    camera_info_template_.width = width_;
+    
+    // Set distortion model
+    camera_info_template_.distortion_model = "plumb_bob";
+    
+    // Copy camera matrix (K) - row-major order
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            camera_info_template_.k[i * 3 + j] = camera_matrix_.at<double>(i, j);
+        }
+    }
+    
+    // Copy distortion coefficients
+    camera_info_template_.d.resize(dist_coeffs_.total());
+    for (size_t i = 0; i < dist_coeffs_.total(); i++) {
+        camera_info_template_.d[i] = dist_coeffs_.at<double>(i);
+    }
+    
+    // Set rectification matrix (R) - identity for monocular camera
+    std::fill(camera_info_template_.r.begin(), camera_info_template_.r.end(), 0.0);
+    camera_info_template_.r[0] = camera_info_template_.r[4] = camera_info_template_.r[8] = 1.0;
+    
+    // Set projection matrix (P) - copy K to first 3 columns, last column zeros
+    std::fill(camera_info_template_.p.begin(), camera_info_template_.p.end(), 0.0);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            camera_info_template_.p[i * 4 + j] = camera_matrix_.at<double>(i, j);
+        }
+    }
+    
+    // Set binning and ROI (Region of Interest)
+    camera_info_template_.binning_x = 1;
+    camera_info_template_.binning_y = 1;
+    camera_info_template_.roi.x_offset = 0;
+    camera_info_template_.roi.y_offset = 0;
+    camera_info_template_.roi.height = 0;  // 0 means full resolution
+    camera_info_template_.roi.width = 0;   // 0 means full resolution
+    camera_info_template_.roi.do_rectify = false;
 
+    RCLCPP_INFO(get_logger(), "Camera info template created successfully");
+}
+
+// Image Callback - simplified camera info publishing
+void DWE_Ros2_Parser::dwe_loop() {
     // Create a video capture object
     cv::VideoCapture dwe_camera = cv::VideoCapture(device_, cv::CAP_V4L2); 
 
@@ -103,7 +190,7 @@ void DWE_Ros2_Parser::dwe_loop() {
 
     // Check if save dir exists, and if not create it 
     if (save_images_) {
-    std::filesystem::path save_dir(save_folder_);
+        std::filesystem::path save_dir(save_folder_);
         if (!std::filesystem::exists(save_dir)) {
             std::filesystem::create_directory(save_dir);
         }
@@ -114,21 +201,16 @@ void DWE_Ros2_Parser::dwe_loop() {
     cv_image.encoding="bgr8";
     cv::Mat image;
     
-    // Looks for interupts
+    // Look for interrupts
     signal(SIGINT, signal_handler);
 
     // Loop is run until Node is told to quit 
     while(running) {
-
-        // Start time
-        auto start = chrono::high_resolution_clock::now();
-
-        // Retrive image        
+        // Retrieve image        
         bool success = dwe_camera.read(image);
 
         // If image is received
         if (success) {
-
             // Shows image if set to true
             if (show_image_) {
                 cv::imshow("DWE Camera", image);
@@ -138,44 +220,29 @@ void DWE_Ros2_Parser::dwe_loop() {
                 }
             }
 
-        // Publish image to ROS2
-        cv_image.image = image;
-        sensor_msgs::msg::Image image_msg = *cv_image.toImageMsg();
-        image_msg.header.stamp = this->now();
-        image_msg.header.frame_id = "camera_frame";
-        image_pub_->publish(image_msg);
+            // Publish image to ROS2
+            cv_image.image = image;
+            sensor_msgs::msg::Image image_msg = *cv_image.toImageMsg();
+            image_msg.header.stamp = this->now();
+            image_msg.header.frame_id = "camera_frame";
+            image_pub_->publish(image_msg);
 
-        // Publish camera info
-        auto camera_info_msg = std::make_unique<sensor_msgs::msg::CameraInfo>();
-        camera_info_msg->header = image_msg.header;
-        camera_info_msg->height = height_;
-        camera_info_msg->width = width_;
-        
-        // Copy camera matrix
-        for (int i = 0; i < 9; i++) {
-            camera_info_msg->k[i] = camera_matrix_.at<double>(i/3, i%3);
+            // Publish camera info (just copy template and update header)
+            sensor_msgs::msg::CameraInfo camera_info_msg = camera_info_template_;
+            camera_info_msg.header = image_msg.header;
+            camera_info_pub_->publish(camera_info_msg);
+            
+            // Save images if enabled
+            if (save_images_) {
+                string filename = save_folder_ + "/" + image_prefix_ + 
+                                to_string(image_msg.header.stamp.sec) + "." + 
+                                to_string(image_msg.header.stamp.nanosec) + ".jpg";
+                cv::imwrite(filename, image);
+            }
         }
-        
-        // Copy distortion coefficients
-        camera_info_msg->d.resize(dist_coeffs_.total());
-        for (int i = 0; i < dist_coeffs_.total(); i++) {
-            camera_info_msg->d[i] = dist_coeffs_.at<double>(i);
-        }
-        
-        camera_info_pub_->publish(*camera_info_msg);
-        
-        if (save_images_) {
-            string filename = save_folder_ + "/" + image_prefix_ + to_string(image_msg.header.stamp.sec) + "." + to_string(image_msg.header.stamp.nanosec) + ".jpg";
-            cv::imwrite(filename, image);
-        }
-
-    }
     }
 
     // Release camera object
     dwe_camera.release();
     cv::destroyAllWindows();
-
-    // Exit node
-    exit(0);
 }
