@@ -29,8 +29,10 @@ from launch_ros.actions import Node
 def generate_launch_description():
 
     # Get package share directory
-    pkg_share = get_package_share_directory('dwe_ros2_parser')
-    calib_file_path = os.path.join(pkg_share, 'config', 'sample.yaml')
+    pkg_dir = get_package_share_directory('dwe_ros2_parser')
+    
+    # Construct path to calibration file
+    calib_file = os.path.join(pkg_dir, 'config', 'dwe_calib.yaml')
 
     # Setup project paths
     dwe_parser = Node(
@@ -40,7 +42,7 @@ def generate_launch_description():
           'device': "/dev/dwe_camera",
           'image_topic': '/dwe/image_raw',
           'camera_info_topic': '/dwe/camera_info',
-          'calib_file': calib_file_path,
+          'calib_file': calib_file,
           'width': 800,
           'height': 600,
           'framerate': 12,
@@ -50,7 +52,7 @@ def generate_launch_description():
           'use_h264': False,
           'save_images': False,
           'save_folder': '/home/gg/camera',
-          'image_prefix': 'left',
+          'image_prefix': 'front',
         }],
         output='screen'
     )
