@@ -54,9 +54,9 @@ def generate_launch_description():
           'save_images': False,
           'save_folder': '/home/gg/camera',
           'image_prefix': 'front',
-          'publish_compressed': True,  # Enable compressed image publishing
+          'publish_compressed': False,  # Enable compressed image publishing
           'jpeg_quality': 80,          # JPEG compression quality (0-100)
-          'publish_raw': False,        # Disable raw image to save bandwidth
+          'publish_raw': True,        # Disable raw image to save bandwidth
         }],
         output='screen'
     )

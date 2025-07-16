@@ -123,11 +123,25 @@ void DWE_Ros2_Parser::load_camera_calibration() {
         return;
     }
     
+    // Add calibration resolution verification
+    int calib_width, calib_height;
+    fs["image_width"] >> calib_width;
+    fs["image_height"] >> calib_height;
+    
+    if (calib_width != width_ || calib_height != height_) {
+        RCLCPP_WARN(get_logger(), "Calibration resolution (%dx%d) doesn't match current resolution (%dx%d)", 
+                    calib_width, calib_height, width_, height_);
+        RCLCPP_WARN(get_logger(), "Camera calibration may not be accurate!");
+    }
+    
     fs["camera_matrix"] >> camera_matrix_;
     fs["distortion_coefficients"] >> dist_coeffs_;
     fs.release();
     
     RCLCPP_INFO(get_logger(), "Successfully loaded calibration file");
+    RCLCPP_INFO(get_logger(), "Camera matrix fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f", 
+                camera_matrix_.at<double>(0,0), camera_matrix_.at<double>(1,1),
+                camera_matrix_.at<double>(0,2), camera_matrix_.at<double>(1,2));
 }
 
 // Setup camera info template once
@@ -137,6 +151,17 @@ void DWE_Ros2_Parser::setup_camera_info() {
     
     // Set distortion model
     camera_info_template_.distortion_model = "plumb_bob";
+    
+    // Validate camera matrix before using it
+    if (camera_matrix_.empty() || camera_matrix_.rows != 3 || camera_matrix_.cols != 3) {
+        RCLCPP_ERROR(get_logger(), "Invalid camera matrix! Using default values.");
+        // Create default camera matrix
+        camera_matrix_ = cv::Mat::eye(3, 3, CV_64F);
+        camera_matrix_.at<double>(0, 0) = 800.0;  // fx
+        camera_matrix_.at<double>(1, 1) = 800.0;  // fy
+        camera_matrix_.at<double>(0, 2) = width_ / 2.0;   // cx
+        camera_matrix_.at<double>(1, 2) = height_ / 2.0;  // cy
+    }
     
     // Copy camera matrix (K) - row-major order
     for (int i = 0; i < 3; i++) {
@@ -173,6 +198,10 @@ void DWE_Ros2_Parser::setup_camera_info() {
     camera_info_template_.roi.do_rectify = false;
 
     RCLCPP_INFO(get_logger(), "Camera info template created successfully");
+    RCLCPP_INFO(get_logger(), "Using camera matrix: fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f", 
+                camera_matrix_.at<double>(0,0), camera_matrix_.at<double>(1,1),
+                camera_matrix_.at<double>(0,2), camera_matrix_.at<double>(1,2));
+    RCLCPP_INFO(get_logger(), "Resolution: %dx%d", width_, height_);
 }
 
 // Image Callback - simplified camera info publishing
