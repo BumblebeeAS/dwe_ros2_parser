@@ -20,7 +20,12 @@ DWE_Ros2_Parser::DWE_Ros2_Parser() : Node("dwe_ros2_parser") {
     setup_camera_info();
 
     // Configure publishers
-    image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic_, 1);
+    if (publish_raw_) {
+        image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic_, 1);
+    }
+    if (publish_compressed_) {
+        compressed_image_pub_ = create_publisher<sensor_msgs::msg::CompressedImage>(compressed_image_topic_, 1);
+    }
     camera_info_pub_ = create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1);
 
     // Start DWE Loop
@@ -39,6 +44,7 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     // Get ROS parameter
     declare_parameter("device", "/dev/dwe_camera");
     declare_parameter("image_topic", "/dwe/image_raw");
+    declare_parameter("compressed_image_topic", "/dwe/image_raw/compressed");
     declare_parameter("camera_info_topic", "/dwe/camera_info");
     declare_parameter("calib_file", "/path/to/calib.yaml");
     declare_parameter("width", 800);    // Originally 1600
@@ -51,11 +57,15 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     declare_parameter("save_images", false);
     declare_parameter("save_folder", "~");
     declare_parameter("image_prefix", "image");
+    declare_parameter("publish_compressed", true);
+    declare_parameter("jpeg_quality", 80);
+    declare_parameter("publish_raw", false);
 
 
     // Fetch parameters
     device_ = get_parameter("device").as_string();
     image_topic_ = get_parameter("image_topic").as_string();
+    compressed_image_topic_ = get_parameter("compressed_image_topic").as_string();
     width_ = get_parameter("width").as_int();
     height_ = get_parameter("height").as_int();
     framerate_ = get_parameter("framerate").as_int();
@@ -68,6 +78,9 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     image_prefix_ = get_parameter("image_prefix").as_string();
     camera_info_topic_ = get_parameter("camera_info_topic").as_string();
     calib_file_path_ = get_parameter("calib_file").as_string();
+    publish_compressed_ = get_parameter("publish_compressed").as_bool();
+    jpeg_quality_ = get_parameter("jpeg_quality").as_int();
+    publish_raw_ = get_parameter("publish_raw").as_bool();
     
 }
 
@@ -197,8 +210,6 @@ void DWE_Ros2_Parser::dwe_loop() {
     }
 
     // Loop variables
-    cv_bridge::CvImage cv_image;
-    cv_image.encoding="bgr8";
     cv::Mat image;
     
     // Look for interrupts
@@ -221,22 +232,49 @@ void DWE_Ros2_Parser::dwe_loop() {
             }
 
             // Publish image to ROS2
-            cv_image.image = image;
-            sensor_msgs::msg::Image image_msg = *cv_image.toImageMsg();
-            image_msg.header.stamp = this->now();
-            image_msg.header.frame_id = "camera_frame";
-            image_pub_->publish(image_msg);
+            rclcpp::Time timestamp = this->now();
+            
+            // Publish raw image if enabled
+            if (publish_raw_ && image_pub_) {
+                cv_bridge::CvImage cv_image;
+                cv_image.encoding = "bgr8";
+                cv_image.image = image;
+                sensor_msgs::msg::Image image_msg = *cv_image.toImageMsg();
+                image_msg.header.stamp = timestamp;
+                image_msg.header.frame_id = "camera_frame";
+                image_pub_->publish(image_msg);
+            }
 
-            // Publish camera info (just copy template and update header)
+            // Publish compressed image if enabled
+            if (publish_compressed_ && compressed_image_pub_) {
+                sensor_msgs::msg::CompressedImage compressed_msg;
+                compressed_msg.header.stamp = timestamp;
+                compressed_msg.header.frame_id = "camera_frame";
+                compressed_msg.format = "jpeg";
+                
+                // Encode image as JPEG
+                std::vector<uchar> buffer;
+                std::vector<int> compression_params;
+                compression_params.push_back(cv::IMWRITE_JPEG_QUALITY);
+                compression_params.push_back(jpeg_quality_);
+                
+                cv::imencode(".jpg", image, buffer, compression_params);
+                compressed_msg.data = buffer;
+                
+                compressed_image_pub_->publish(compressed_msg);
+            }
+
+            // Publish camera info (use the same timestamp)
             sensor_msgs::msg::CameraInfo camera_info_msg = camera_info_template_;
-            camera_info_msg.header = image_msg.header;
+            camera_info_msg.header.stamp = timestamp;
+            camera_info_msg.header.frame_id = "camera_frame";
             camera_info_pub_->publish(camera_info_msg);
             
             // Save images if enabled
             if (save_images_) {
                 string filename = save_folder_ + "/" + image_prefix_ + 
-                                to_string(image_msg.header.stamp.sec) + "." + 
-                                to_string(image_msg.header.stamp.nanosec) + ".jpg";
+                                to_string(timestamp.seconds()) + "." + 
+                                to_string(timestamp.nanoseconds()) + ".jpg";
                 cv::imwrite(filename, image);
             }
         }

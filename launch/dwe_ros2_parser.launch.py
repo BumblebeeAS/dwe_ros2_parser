@@ -39,8 +39,9 @@ def generate_launch_description():
         package='dwe_ros2_parser',
         executable='dwe_ros2_parser',
         parameters=[{
-          'device': "/dev/dwe_camera",
+          'device': "/dev/video8",
           'image_topic': '/dwe/image_raw',
+          'compressed_image_topic': '/dwe/image_raw/compressed',
           'camera_info_topic': '/dwe/camera_info',
           'calib_file': calib_file,
           'width': 800,
@@ -53,6 +54,9 @@ def generate_launch_description():
           'save_images': False,
           'save_folder': '/home/gg/camera',
           'image_prefix': 'front',
+          'publish_compressed': True,  # Enable compressed image publishing
+          'jpeg_quality': 80,          # JPEG compression quality (0-100)
+          'publish_raw': False,        # Disable raw image to save bandwidth
         }],
         output='screen'
     )

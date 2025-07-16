@@ -11,6 +11,7 @@
 #include <thread>
 #include <filesystem>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <opencv2/core/mat.hpp>
 
@@ -37,12 +38,13 @@ class DWE_Ros2_Parser : public rclcpp::Node {
         sensor_msgs::msg::CameraInfo camera_info_template_;  // Pre-populated template
         
         // ROS2 Parameters
-        string image_topic_, save_folder_, image_prefix_, device_, camera_info_topic_;
-        int width_, height_, framerate_, exposure_;
-        bool auto_exposure_, show_image_, use_h264_, save_images_;
+        string image_topic_, compressed_image_topic_, save_folder_, image_prefix_, device_, camera_info_topic_;
+        int width_, height_, framerate_, exposure_, jpeg_quality_;
+        bool auto_exposure_, show_image_, use_h264_, save_images_, publish_compressed_, publish_raw_;
 
         // ROS2 variables
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+        rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_image_pub_;
         rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
 };
 
