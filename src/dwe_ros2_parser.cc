@@ -52,6 +52,9 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     declare_parameter("framerate", 60);
     declare_parameter("auto_exposure", false);
     declare_parameter("exposure", 100);
+    declare_parameter("brightness", 100);
+    declare_parameter("gain", 10);
+    declare_parameter("gamma", 100);
     declare_parameter("show_image", false);
     declare_parameter("use_h264", false);
     declare_parameter("save_images", false);
@@ -71,7 +74,10 @@ void DWE_Ros2_Parser::fetch_ros_parameters() {
     framerate_ = get_parameter("framerate").as_int();
     auto_exposure_ = get_parameter("auto_exposure").as_bool();
     exposure_ = get_parameter("exposure").as_int();
+    gain_ = get_parameter("gain").as_int();
+    brightness_ = get_parameter("brightness").as_int();
     show_image_ = get_parameter("show_image").as_bool();
+    gamma_ = get_parameter("gamma").as_int();
     use_h264_ = get_parameter("use_h264").as_bool();
     save_images_ = get_parameter("save_images").as_bool();
     save_folder_ = get_parameter("save_folder").as_string();
@@ -228,6 +234,16 @@ void DWE_Ros2_Parser::dwe_loop() {
     if (!auto_exposure_) {
         dwe_camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
         dwe_camera.set(cv::CAP_PROP_EXPOSURE, exposure_);
+        dwe_camera.set(cv::CAP_PROP_GAIN, gain_);
+        dwe_camera.set(cv::CAP_PROP_BRIGHTNESS, brightness_);
+        dwe_camera.set(cv::CAP_PROP_AUTO_WB, true);
+        dwe_camera.set(cv::CAP_PROP_GAMMA, gamma_);
+        bool white_balance = dwe_camera.get(cv::CAP_PROP_AUTO_WB);
+        std::cout << "Current wb: " << white_balance << std::endl;
+        double current_gamma = dwe_camera.get(cv::CAP_PROP_GAMMA);
+        std::cout << "Current gamma: " << current_gamma << std::endl;
+        double brightness = dwe_camera.get(cv::CAP_PROP_BRIGHTNESS);
+        std::cout << "Current brightness: " << brightness << std::endl;
     }
 
     // Check if save dir exists, and if not create it 
@@ -270,7 +286,7 @@ void DWE_Ros2_Parser::dwe_loop() {
                 cv_image.image = image;
                 sensor_msgs::msg::Image image_msg = *cv_image.toImageMsg();
                 image_msg.header.stamp = timestamp;
-                image_msg.header.frame_id = "camera_frame";
+                image_msg.header.frame_id = "front_cam";
                 image_pub_->publish(image_msg);
             }
 
@@ -278,7 +294,7 @@ void DWE_Ros2_Parser::dwe_loop() {
             if (publish_compressed_ && compressed_image_pub_) {
                 sensor_msgs::msg::CompressedImage compressed_msg;
                 compressed_msg.header.stamp = timestamp;
-                compressed_msg.header.frame_id = "camera_frame";
+                compressed_msg.header.frame_id = "front_cam";
                 compressed_msg.format = "jpeg";
                 
                 // Encode image as JPEG
@@ -296,7 +312,7 @@ void DWE_Ros2_Parser::dwe_loop() {
             // Publish camera info (use the same timestamp)
             sensor_msgs::msg::CameraInfo camera_info_msg = camera_info_template_;
             camera_info_msg.header.stamp = timestamp;
-            camera_info_msg.header.frame_id = "camera_frame";
+            camera_info_msg.header.frame_id = "front_cam";
             camera_info_pub_->publish(camera_info_msg);
             
             // Save images if enabled
