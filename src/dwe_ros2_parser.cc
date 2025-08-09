@@ -238,6 +238,7 @@ void DWE_Ros2_Parser::dwe_loop() {
         dwe_camera.set(cv::CAP_PROP_BRIGHTNESS, brightness_);
         dwe_camera.set(cv::CAP_PROP_AUTO_WB, true);
         dwe_camera.set(cv::CAP_PROP_GAMMA, gamma_);
+        std::cout << "Current exposure: " << exposure_ << std::endl;
         bool white_balance = dwe_camera.get(cv::CAP_PROP_AUTO_WB);
         std::cout << "Current wb: " << white_balance << std::endl;
         double current_gamma = dwe_camera.get(cv::CAP_PROP_GAMMA);
